@@ -15,6 +15,7 @@ const int TOUCH_PIN = 13;
 const int SW_LED_PIN = 12;
 boolean PIR_STAT = false;
 boolean SWITCH = false;
+int CountDown = 2000;
 int StayOnCount = 0;
 
 boolean flag_dht_detect = false;
@@ -24,6 +25,8 @@ unsigned long previousMillis_stayoncount = 0;
 unsigned long currentMillis_stayoncount = 0;
 unsigned long previousMillis_DHT_DetectPeriod = 0;
 unsigned long currentMillis_DHT_DetectPeriod = 0;
+unsigned long previousMillis_TOUCH_DetectPeriod = 0;
+unsigned long currentMillis_TOUCH_DetectPeriod = 0;
 
 
 DHT dht(DHT_PIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
@@ -51,11 +54,16 @@ void setup() {
 void loop() {
   //=============== PIR & Switch process ===================
   int pir_detected = digitalRead(PIR_PIN);
-  int touch_detected = digitalRead(TOUCH_PIN);
-
+  //int touch_detected = digitalRead(TOUCH_PIN);
+  int touch_detected = false;
   // timer
   currentMillis_stayoncount = millis();
   currentMillis_DHT_DetectPeriod = millis();
+
+  // Avoid the touch sensor to sensitive, so detect it every 1 secs
+  if ((currentMillis_TOUCH_DetectPeriod - previousMillis_TOUCH_DetectPeriod) > 1000) {
+    touch_detected = digitalRead(TOUCH_PIN);
+  }
   
   // define SWITCH
   if (touch_detected == HIGH and SWITCH == false) {
@@ -85,7 +93,7 @@ void loop() {
       relay_low(RELAY_PIN);
     }
     else {
-      if ((currentMillis_stayoncount - previousMillis_stayoncount) > 500) {
+      if ((currentMillis_stayoncount - previousMillis_stayoncount) > CountDown) {
         StayOnCount--;
         previousMillis_stayoncount = currentMillis_stayoncount;
       }
