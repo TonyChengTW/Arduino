@@ -9,10 +9,12 @@ const int httpPort = 7878;
 
 // NodeMCU
 const int DHT_PIN = 5;
-const int PIR_PIN = 4;
+const int PIR_PIN = 14;
 const int RELAY_PIN = 0;
 const int TOUCH_PIN = 13;
 const int SW_LED_PIN = 12;
+int pir_detected = 0;
+int touch_detected = 0;
 boolean PIR_STAT = false;
 boolean SWITCH = false;
 int CountDown = 2000;
@@ -21,12 +23,15 @@ int StayOnCount = 0;
 boolean flag_dht_detect = false;
 int DHT_DetectPeriod = 60000;
 
+unsigned long previousMillis_DetectPeriod = 0;
+unsigned long currentMillis_DetectPeriod = 0;
+
 unsigned long previousMillis_stayoncount = 0;
 unsigned long currentMillis_stayoncount = 0;
 unsigned long previousMillis_DHT_DetectPeriod = 0;
 unsigned long currentMillis_DHT_DetectPeriod = 0;
-unsigned long previousMillis_TOUCH_DetectPeriod = 0;
-unsigned long currentMillis_TOUCH_DetectPeriod = 0;
+unsigned long previousMillis_PIR_DetectPeriod = 0;
+unsigned long currentMillis_PIR_DetectPeriod = 0;
 
 
 DHT dht(DHT_PIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
@@ -53,94 +58,95 @@ void setup() {
 
 void loop() {
   //=============== PIR & Switch process ===================
-  int pir_detected = digitalRead(PIR_PIN);
-  //int touch_detected = digitalRead(TOUCH_PIN);
-  int touch_detected = false;
+
   // timer
   currentMillis_stayoncount = millis();
+  currentMillis_DetectPeriod = millis();
   currentMillis_DHT_DetectPeriod = millis();
+  currentMillis_PIR_DetectPeriod = millis();
 
-  // Avoid the touch sensor to sensitive, so detect it every 1 secs
-  if ((currentMillis_TOUCH_DetectPeriod - previousMillis_TOUCH_DetectPeriod) > 1000) {
-    touch_detected = digitalRead(TOUCH_PIN);
+  if ((currentMillis_PIR_DetectPeriod - previousMillis_PIR_DetectPeriod) > 1000) {
+    pir_detected = digitalRead(PIR_PIN);
+    previousMillis_PIR_DetectPeriod = currentMillis_PIR_DetectPeriod;
   }
   
-  // define SWITCH
-  if (touch_detected == HIGH and SWITCH == false) {
-    SWITCH = true;
-    digitalWrite(SW_LED_PIN, HIGH);
-  }
-  else if (touch_detected == HIGH and SWITCH == true) {
-    SWITCH = false;
-    digitalWrite(SW_LED_PIN, LOW);
-  }
+  // Avoid the touch sensor to sensitive, so detect it every 1 secs
+  if ((currentMillis_DetectPeriod - previousMillis_DetectPeriod) > 1000) {
+    touch_detected = digitalRead(TOUCH_PIN);
+    //============== final : print debug info ===========
+    Serial.print("StayOnCount=");
+    Serial.println(StayOnCount);
+    Serial.print("pir_detected=");
+    Serial.println(pir_detected);
+    Serial.print("PIR_STAT=");
+    Serial.println(PIR_STAT);
+    Serial.print("touch_detected=");
+    Serial.println(touch_detected);
+    Serial.print("SWITCH=");
+    Serial.println(SWITCH);
+    //  Serial.print("flag_dht_detect==");
+    //  Serial.print(flag_dht_detect);
+    Serial.println();
       
+    // define SWITCH
+    if (touch_detected == HIGH and SWITCH == false) {
+      SWITCH = true;
+      digitalWrite(SW_LED_PIN, HIGH);
+    }
+    else if (touch_detected == HIGH and SWITCH == true) {
+      SWITCH = false;
+      digitalWrite(SW_LED_PIN, LOW);
+    }
+  
   //  relay --> high
-  if ((pir_detected == HIGH and PIR_STAT == false) or (SWITCH == true)) {
-    PIR_STAT=true;
-    relay_high(RELAY_PIN);
-    StayOnCount=10;
-  }
-  else if ((pir_detected == HIGH and PIR_STAT == true) and (SWITCH == false)) {
-    if ((StayOnCount < 5) and (StayOnCount > 3))  {
-       StayOnCount=30;
+    if ((pir_detected == HIGH and PIR_STAT == false) or (SWITCH == true)) {
+      PIR_STAT=true;
+      relay_high(RELAY_PIN);
+      StayOnCount=10;
     }
-  }
-  // relay --> low
-  else if ((pir_detected == LOW and PIR_STAT == true) or (SWITCH == false)) {
-    if (StayOnCount==0) {
-      PIR_STAT=false;
-      relay_low(RELAY_PIN);
-    }
-    else {
-      if ((currentMillis_stayoncount - previousMillis_stayoncount) > CountDown) {
-        StayOnCount--;
-        previousMillis_stayoncount = currentMillis_stayoncount;
+    else if ((pir_detected == HIGH and PIR_STAT == true) and (SWITCH == false)) {
+      if ((StayOnCount < 5) and (StayOnCount > 3))  {
+         StayOnCount=30;
       }
     }
-  }
-
-
- 
-  //=============== DHT & WiFi POST process ===================
-
-  if (flag_dht_detect == true) {
-    String *array_hum_temp = get_hum_temp_post();
-    Serial.println(array_hum_temp[0]);
-    Serial.println(array_hum_temp[1]);
-    
-    // post humidity
-    String hum_header_body = concatenate_header_body("humidity", array_hum_temp[0], "Gobin-4F12", "My bedroom");
-    post_hum_temp(hum_header_body);
-    
-    // post temperature
-    hum_header_body = concatenate_header_body("temperature", array_hum_temp[1], "Gobin-4F12", "My bedroom");
-    post_hum_temp(hum_header_body);
-  }
+    // relay --> low
+    else if ((pir_detected == LOW and PIR_STAT == true) or (SWITCH == false)) {
+      if (StayOnCount==0) {
+        PIR_STAT=false;
+        relay_low(RELAY_PIN);
+      }
+      else {
+        if ((currentMillis_stayoncount - previousMillis_stayoncount) > CountDown) {
+          StayOnCount--;
+          previousMillis_stayoncount = currentMillis_stayoncount;
+        }
+      }
+    }
   
-//===============Detect Period ==================
-  //delay(DHT_DetectPeriod);
-  if ((currentMillis_DHT_DetectPeriod - previousMillis_DHT_DetectPeriod) > DHT_DetectPeriod) {
-     flag_dht_detect = true;
-     previousMillis_DHT_DetectPeriod = currentMillis_DHT_DetectPeriod;
-  }  else {
-     flag_dht_detect = false;     
+  //=============== DHT & WiFi POST process ===================
+    if (flag_dht_detect == true) {
+      String *array_hum_temp = get_hum_temp_post();
+      Serial.println(array_hum_temp[0]);
+      Serial.println(array_hum_temp[1]);
+      
+      // post humidity
+      String hum_header_body = concatenate_header_body("humidity", array_hum_temp[0], "Gobin-4F12", "My backyark");
+      post_hum_temp(hum_header_body);
+      
+      // post temperature
+      hum_header_body = concatenate_header_body("temperature", array_hum_temp[1], "Gobin-4F12", "My backyark");
+      post_hum_temp(hum_header_body);
+    }
+    
+    //delay(DHT_DetectPeriod);
+    if ((currentMillis_DHT_DetectPeriod - previousMillis_DHT_DetectPeriod) > DHT_DetectPeriod) {
+       flag_dht_detect = true;
+       previousMillis_DHT_DetectPeriod = currentMillis_DHT_DetectPeriod;
+    }  else {
+       flag_dht_detect = false;     
+    }
+  previousMillis_DetectPeriod = currentMillis_DetectPeriod;
   }
-
-//============== final : print debug info ===========
-//  Serial.print("StayOnCount=");
-//  Serial.println(StayOnCount);
-//  Serial.print("pir_detected=");
-//  Serial.println(pir_detected);
-//  Serial.print("PIR_STAT=");
-//  Serial.println(PIR_STAT);
-//  Serial.print("touch_detected=");
-//  Serial.println(touch_detected);
-//  Serial.print("SWITCH=");
-//  Serial.println(SWITCH);
-//  Serial.print("flag_dht_detect==");
-//  Serial.print(flag_dht_detect);
-//  Serial.println();
 }
 
 //============= Function ==========================
