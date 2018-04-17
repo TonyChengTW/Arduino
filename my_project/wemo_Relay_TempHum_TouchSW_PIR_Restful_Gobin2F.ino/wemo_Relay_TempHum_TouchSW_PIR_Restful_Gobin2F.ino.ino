@@ -98,14 +98,14 @@ void loop()
   if ((pir_detected == HIGH and PIR_STAT == false) or (SWITCH == true)) {
     PIR_STAT=true;
     relay_high(RELAY_PIN);
-    StayOnCount=10;
+    StayOnCount=30;
   }
   else if ((pir_detected == HIGH and PIR_STAT == true) and (SWITCH == false)) {
     if ((StayOnCount < 5) and (StayOnCount > 3))  {
-       StayOnCount=25;
+       StayOnCount=60;
     }
     if (StayOnCount <= 3) {
-       StayOnCount=30;
+       StayOnCount=60;
     }
   }
   // relay --> low
